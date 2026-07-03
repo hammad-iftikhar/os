@@ -3,22 +3,19 @@
 #include "gic.h"
 #include "timer.h"
 #include "pmm.h"
+#include "vm.h"
 
 void kmain(void)
 {
     exceptions_init();
     gic_init();
     pmm_init();
+    vm_init();
 
-    // Allocator smoke test: LIFO free list means freeing then
-    // reallocating returns the same page.
-    void *a = alloc_page();
-    void *b = alloc_page();
-    kprintf("pmm: a=%p b=%p\n", a, b);
-    free_page(a);
-    void *c = alloc_page();
-    kprintf("pmm: freed a, realloc'd -> %p (%s)\n",
-            c, c == a ? "same page, LIFO works" : "BUG: expected a");
+    // Milestone 3 payoff: this exact read used to be a data abort.
+    // RAM is Normal memory now -- unaligned access is legal.
+    volatile unsigned int *p = (unsigned int *)0x40080001UL;
+    kprintf("unaligned read at %p works now: %x\n", (void *)p, *p);
 
     timer_init(1);
     __asm__ volatile("msr daifclr, #2");
