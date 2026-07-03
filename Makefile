@@ -5,7 +5,7 @@ LD     := ld.lld
 QEMU   := qemu-system-aarch64 -machine virt -cpu cortex-a72
 
 OBJS := build/boot.o build/main.o build/uart.o build/kprintf.o \
-        build/vectors.o build/trap.o
+        build/vectors.o build/trap.o build/gic.o build/timer.o
 
 all: build/kernel.elf
 
@@ -18,7 +18,8 @@ build/boot.o: boot.S | build
 build/%.o: kernel/%.S | build
 	$(CC) $(CROSS) -c $< -o $@
 
-build/%.o: kernel/%.c kernel/uart.h kernel/kprintf.h kernel/trap.h | build
+build/%.o: kernel/%.c kernel/uart.h kernel/kprintf.h kernel/trap.h \
+           kernel/gic.h kernel/timer.h | build
 	$(CC) $(CFLAGS) -c $< -o $@
 
 build/kernel.elf: $(OBJS) linker.ld

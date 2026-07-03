@@ -1,16 +1,17 @@
 #include "kprintf.h"
 #include "trap.h"
+#include "gic.h"
+#include "timer.h"
 
 void kmain(void)
 {
     exceptions_init();
-    kprintf("Hello from kernel\n");
-    kprintf("vectors installed; now crashing on purpose...\n");
+    gic_init();
+    timer_init(1);                          // 1 Hz heartbeat
 
-    // With the MMU off, all memory is Device-type and unaligned
-    // access faults: data abort, FAR = the bad address.
-    volatile unsigned int *p = (unsigned int *)0x40080001UL;
-    kprintf("read: %x\n", *p);
+    __asm__ volatile("msr daifclr, #2");    // unmask IRQs (the I in DAIF)
+    kprintf("interrupts on; idling\n");
 
-    panic("unreachable: the read above must fault");
+    for (;;)
+        __asm__ volatile("wfi");            // sleep until an interrupt
 }

@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include "kprintf.h"
 #include "trap.h"
+#include "gic.h"
+#include "timer.h"
 
 // Filled in by save_rest in vectors.S. Field order and offsets are a
 // contract with that code -- do not reorder.
@@ -56,6 +58,25 @@ void handle_exception(struct trap_frame *tf, uint64_t vector)
     }
 
     panic("unhandled exception");
+}
+
+void handle_irq(struct trap_frame *tf);
+
+void handle_irq(struct trap_frame *tf)
+{
+    (void)tf;   // milestone 6's scheduler will use the frame
+
+    uint32_t intid = gic_ack();
+
+    if (intid >= 1020)              // spurious: ack'd by someone else
+        return;                     // (no EOI for spurious IDs)
+
+    if (intid == TIMER_INTID)
+        timer_tick();
+    else
+        panic("unexpected IRQ %d", (int)intid);
+
+    gic_eoi(intid);
 }
 
 void exceptions_init(void)

@@ -5,45 +5,24 @@
 // (where the exception came from) x (what kind it is):
 //
 //   entries  0-3   current EL, using SP_EL0   (we never run this way)
-//   entries  4-7   current EL, using SP_EL1   <- kernel faults land here
+//   entries  4-7   current EL, using SP_EL1   <- kernel faults + IRQs
 //   entries  8-11  lower EL, AArch64          <- user programs, milestone 7
 //   entries 12-15  lower EL, AArch32          (we don't support 32-bit)
 //   kinds within each group: sync, IRQ, FIQ, SError
 //
-// Every entry does the same thing: build a trap frame, call C with the
-// frame and its own index. 128 bytes = 32 instructions is too tight to
-// be comfortable, so entries save x0/x1, load their index, and branch
-// to a shared stub for the rest.
+// Two stubs share the same trap-frame layout (contract with trap.c):
+//   fatal_stub: save everything, call handle_exception -> panics
+//   irq_stub:   save everything, call handle_irq, restore, eret
 
-.macro ventry idx
+.macro ventry idx, stub
 .balign 128
     sub     sp, sp, #288            // room for the trap frame
     stp     x0, x1, [sp, #0]        // free up two scratch registers
     mov     x0, #\idx
-    b       save_rest
+    b       \stub
 .endm
 
-.balign 2048
-.globl vectors
-vectors:
-    ventry  0
-    ventry  1
-    ventry  2
-    ventry  3
-    ventry  4
-    ventry  5
-    ventry  6
-    ventry  7
-    ventry  8
-    ventry  9
-    ventry  10
-    ventry  11
-    ventry  12
-    ventry  13
-    ventry  14
-    ventry  15
-
-save_rest:
+.macro save_rest                    // everything except x0/x1 (already saved)
     stp     x2, x3, [sp, #16]
     stp     x4, x5, [sp, #32]
     stp     x6, x7, [sp, #48]
@@ -65,8 +44,59 @@ save_rest:
     stp     x1, x2, [sp, #256]
     mrs     x1, far_el1
     str     x1, [sp, #272]
+.endm
 
+.balign 2048
+.globl vectors
+vectors:
+    ventry  0, fatal_stub
+    ventry  1, fatal_stub
+    ventry  2, fatal_stub
+    ventry  3, fatal_stub
+    ventry  4, fatal_stub
+    ventry  5, irq_stub             // IRQ at EL1h: the survivable one
+    ventry  6, fatal_stub
+    ventry  7, fatal_stub
+    ventry  8, fatal_stub
+    ventry  9, fatal_stub
+    ventry  10, fatal_stub
+    ventry  11, fatal_stub
+    ventry  12, fatal_stub
+    ventry  13, fatal_stub
+    ventry  14, fatal_stub
+    ventry  15, fatal_stub
+
+fatal_stub:
+    save_rest
     mov     x1, x0                  // arg1 = vector index
     mov     x0, sp                  // arg0 = trap frame
     bl      handle_exception
     b       .                       // handler panics; never returns
+
+irq_stub:
+    save_rest
+    mov     x0, sp
+    bl      handle_irq
+    // Undo everything: ELR/SPSR first (they need scratch registers),
+    // then the GPRs, x0/x1 last, and eret jumps back to ELR.
+    ldp     x1, x2, [sp, #248]      // elr, spsr
+    msr     elr_el1, x1
+    msr     spsr_el1, x2
+    ldr     x30, [sp, #240]
+    ldp     x28, x29, [sp, #224]
+    ldp     x26, x27, [sp, #208]
+    ldp     x24, x25, [sp, #192]
+    ldp     x22, x23, [sp, #176]
+    ldp     x20, x21, [sp, #160]
+    ldp     x18, x19, [sp, #144]
+    ldp     x16, x17, [sp, #128]
+    ldp     x14, x15, [sp, #112]
+    ldp     x12, x13, [sp, #96]
+    ldp     x10, x11, [sp, #80]
+    ldp     x8, x9, [sp, #64]
+    ldp     x6, x7, [sp, #48]
+    ldp     x4, x5, [sp, #32]
+    ldp     x2, x3, [sp, #16]
+    ldp     x0, x1, [sp, #0]
+    add     sp, sp, #288
+    eret
