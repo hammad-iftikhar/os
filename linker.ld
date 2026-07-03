@@ -21,4 +21,7 @@ SECTIONS
     . = ALIGN(16);              /* AArch64 requires 16-byte-aligned SP */
     . += 0x4000;                /* 16 KiB boot stack */
     __stack_top = .;
+
+    . = ALIGN(4096);
+    _kernel_end = .;            /* first byte the allocator may hand out */
 }
