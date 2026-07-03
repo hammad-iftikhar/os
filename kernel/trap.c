@@ -3,6 +3,7 @@
 #include "trap.h"
 #include "gic.h"
 #include "timer.h"
+#include "thread.h"
 
 // Filled in by save_rest in vectors.S. Field order and offsets are a
 // contract with that code -- do not reorder.
@@ -71,12 +72,17 @@ void handle_irq(struct trap_frame *tf)
     if (intid >= 1020)              // spurious: ack'd by someone else
         return;                     // (no EOI for spurious IDs)
 
-    if (intid == TIMER_INTID)
-        timer_tick();
-    else
+    if (intid != TIMER_INTID)
         panic("unexpected IRQ %d", (int)intid);
 
+    // Order is load-bearing: re-arm and EOI *before* schedule().
+    // schedule() may not return for many ticks (we'll be switched
+    // out); if the EOI waited until after, the GIC would consider
+    // the timer interrupt still active and never deliver another
+    // one -- preemption would end at the first switch.
+    timer_tick();
     gic_eoi(intid);
+    schedule();
 }
 
 void exceptions_init(void)

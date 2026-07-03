@@ -76,15 +76,26 @@ void vkprintf(const char *fmt, va_list ap)
 
 void kprintf(const char *fmt, ...)
 {
+    uint64_t daif;
     va_list ap;
+
+    // Atomic prints: no preemption mid-line. Save/restore rather than
+    // set/clear so printing from IRQ context stays masked.
+    __asm__ volatile("mrs %0, daif" : "=r"(daif));
+    __asm__ volatile("msr daifset, #2");
+
     va_start(ap, fmt);
     vkprintf(fmt, ap);
     va_end(ap);
+
+    __asm__ volatile("msr daif, %0" :: "r"(daif));
 }
 
 _Noreturn void panic(const char *fmt, ...)
 {
     va_list ap;
+
+    __asm__ volatile("msr daifset, #2");    // no preemption while dying
 
     kprintf("\nPANIC: ");
     va_start(ap, fmt);

@@ -44,6 +44,10 @@ void timer_init(uint32_t hz)
 void timer_tick(void)
 {
     tick_count++;
-    kprintf("tick %d\n", (int)tick_count);
     write_cntp_tval(ticks_per_period);  // re-arm: TVAL counts down anew
+}
+
+uint64_t timer_ticks(void)
+{
+    return tick_count;
 }

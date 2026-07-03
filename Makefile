@@ -6,7 +6,7 @@ QEMU   := qemu-system-aarch64 -machine virt -cpu cortex-a72 -m 128M
 
 OBJS := build/boot.o build/main.o build/uart.o build/kprintf.o \
         build/vectors.o build/trap.o build/gic.o build/timer.o \
-        build/string.o build/pmm.o build/vm.o
+        build/string.o build/pmm.o build/vm.o build/swtch.o build/thread.o
 
 all: build/kernel.elf
 
@@ -21,7 +21,7 @@ build/%.o: kernel/%.S | build
 
 build/%.o: kernel/%.c kernel/uart.h kernel/kprintf.h kernel/trap.h \
            kernel/gic.h kernel/timer.h kernel/string.h kernel/pmm.h \
-           kernel/vm.h | build
+           kernel/vm.h kernel/thread.h | build
 	$(CC) $(CFLAGS) -c $< -o $@
 
 build/kernel.elf: $(OBJS) linker.ld

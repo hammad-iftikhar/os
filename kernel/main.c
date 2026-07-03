@@ -4,6 +4,32 @@
 #include "timer.h"
 #include "pmm.h"
 #include "vm.h"
+#include "thread.h"
+
+// Two workers that never yield voluntarily: only preemption can
+// interleave them. The busy loop is the point -- it proves the timer
+// can yank the CPU away from uncooperative code.
+static void spin(void)
+{
+    for (volatile int i = 0; i < 20000000; i++)
+        ;
+}
+
+static void worker_a(void)
+{
+    for (int n = 1;; n++) {
+        kprintf("  A says %d\n", n);
+        spin();
+    }
+}
+
+static void worker_b(void)
+{
+    for (int n = 1;; n++) {
+        kprintf("  B says %d\n", n);
+        spin();
+    }
+}
 
 void kmain(void)
 {
@@ -11,15 +37,14 @@ void kmain(void)
     gic_init();
     pmm_init();
     vm_init();
+    thread_bootstrap();
 
-    // Milestone 3 payoff: this exact read used to be a data abort.
-    // RAM is Normal memory now -- unaligned access is legal.
-    volatile unsigned int *p = (unsigned int *)0x40080001UL;
-    kprintf("unaligned read at %p works now: %x\n", (void *)p, *p);
+    thread_create(worker_a, "A");
+    thread_create(worker_b, "B");
 
-    timer_init(1);
+    timer_init(10);                         // 10 Hz preemption
     __asm__ volatile("msr daifclr, #2");
-    kprintf("interrupts on; idling\n");
+    kprintf("scheduler on; main thread idling\n");
 
     for (;;)
         __asm__ volatile("wfi");
