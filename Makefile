@@ -4,7 +4,8 @@ CFLAGS := $(CROSS) -ffreestanding -mgeneral-regs-only -Wall -Wextra -O2 -g
 LD     := ld.lld
 QEMU   := qemu-system-aarch64 -machine virt -cpu cortex-a72
 
-OBJS := build/boot.o build/main.o build/uart.o build/kprintf.o
+OBJS := build/boot.o build/main.o build/uart.o build/kprintf.o \
+        build/vectors.o build/trap.o
 
 all: build/kernel.elf
 
@@ -14,7 +15,10 @@ build:
 build/boot.o: boot.S | build
 	$(CC) $(CROSS) -c $< -o $@
 
-build/%.o: kernel/%.c kernel/uart.h kernel/kprintf.h | build
+build/%.o: kernel/%.S | build
+	$(CC) $(CROSS) -c $< -o $@
+
+build/%.o: kernel/%.c kernel/uart.h kernel/kprintf.h kernel/trap.h | build
 	$(CC) $(CFLAGS) -c $< -o $@
 
 build/kernel.elf: $(OBJS) linker.ld
