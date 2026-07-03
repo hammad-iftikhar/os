@@ -57,8 +57,8 @@ vectors:
     ventry  5, irq_stub             // IRQ at EL1h: the survivable one
     ventry  6, fatal_stub
     ventry  7, fatal_stub
-    ventry  8, fatal_stub
-    ventry  9, fatal_stub
+    ventry  8, sync_el0_stub        // sync from EL0: svc or user fault
+    ventry  9, irq_stub             // timer preempts user code too
     ventry  10, fatal_stub
     ventry  11, fatal_stub
     ventry  12, fatal_stub
@@ -77,6 +77,18 @@ irq_stub:
     save_rest
     mov     x0, sp
     bl      handle_irq
+    b       restore_and_eret
+
+// Sync exception from EL0 (vector 8): an svc syscall, or a user fault.
+// handle_sync_el0 returns for syscalls (restore + eret resumes the
+// user program right after its svc); user faults never come back.
+sync_el0_stub:
+    save_rest
+    mov     x0, sp
+    bl      handle_sync_el0
+    b       restore_and_eret
+
+restore_and_eret:
     // Undo everything: ELR/SPSR first (they need scratch registers),
     // then the GPRs, x0/x1 last, and eret jumps back to ELR.
     ldp     x1, x2, [sp, #248]      // elr, spsr

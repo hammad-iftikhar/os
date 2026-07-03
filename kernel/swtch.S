@@ -46,3 +46,18 @@ thread_start:
     msr     daifclr, #2
     blr     x19
     bl      thread_return_panic
+
+// One-way door down to EL0.
+//
+// void enter_user(uint64_t entry, uint64_t user_sp)
+//
+// eret to EL0: ELR = user entry point, SPSR = 0 (EL0t, all interrupt
+// masks clear -- the timer keeps preempting), SP_EL0 = user stack.
+// EL0 has its own stack pointer register; ours (SP_EL1) stays put and
+// becomes the kernel stack every trap from this program lands on.
+.globl enter_user
+enter_user:
+    msr     sp_el0, x1
+    msr     elr_el1, x0
+    msr     spsr_el1, xzr
+    eret

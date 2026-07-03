@@ -9,7 +9,13 @@ SECTIONS
         KEEP(*(.text.boot))     /* _start must come first */
         *(.text*)
     }
-    .rodata : { *(.rodata*) }
+    .rodata : {
+        *(.rodata*)
+        . = ALIGN(16);
+        __user_code_start = .;
+        *(.user_code)
+        __user_code_end = .;
+    }
     .data   : { *(.data*) }
     .bss    : {
         __bss_start = .;

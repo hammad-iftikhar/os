@@ -5,29 +5,16 @@
 #include "pmm.h"
 #include "vm.h"
 #include "thread.h"
+#include "user.h"
 
-// Two workers that never yield voluntarily: only preemption can
-// interleave them. The busy loop is the point -- it proves the timer
-// can yank the CPU away from uncooperative code.
-static void spin(void)
-{
-    for (volatile int i = 0; i < 20000000; i++)
-        ;
-}
-
-static void worker_a(void)
+// One kernel thread keeps running alongside the user program to show
+// EL0 code and EL1 threads share the same scheduler heartbeat.
+static void worker_k(void)
 {
     for (int n = 1;; n++) {
-        kprintf("  A says %d\n", n);
-        spin();
-    }
-}
-
-static void worker_b(void)
-{
-    for (int n = 1;; n++) {
-        kprintf("  B says %d\n", n);
-        spin();
+        kprintf("  K (kernel thread) says %d\n", n);
+        for (volatile int i = 0; i < 40000000; i++)
+            ;
     }
 }
 
@@ -39,13 +26,12 @@ void kmain(void)
     vm_init();
     thread_bootstrap();
 
-    thread_create(worker_a, "A");
-    thread_create(worker_b, "B");
+    thread_create(worker_k, "K");
 
     timer_init(10);                         // 10 Hz preemption
     __asm__ volatile("msr daifclr, #2");
-    kprintf("scheduler on; main thread idling\n");
 
-    for (;;)
-        __asm__ volatile("wfi");
+    // The main thread itself becomes the user program's vehicle:
+    // every trap from EL0 lands on this thread's kernel stack.
+    user_run();
 }

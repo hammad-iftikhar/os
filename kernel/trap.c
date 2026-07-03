@@ -4,16 +4,7 @@
 #include "gic.h"
 #include "timer.h"
 #include "thread.h"
-
-// Filled in by save_rest in vectors.S. Field order and offsets are a
-// contract with that code -- do not reorder.
-struct trap_frame {
-    uint64_t x[31];     // x0..x30
-    uint64_t elr;       // where the exception happened
-    uint64_t spsr;      // saved processor state
-    uint64_t esr;       // exception syndrome: what and why
-    uint64_t far;       // faulting address (valid for aborts)
-};
+#include "syscall.h"
 
 static const char *vector_names[16] = {
     "sync EL1t", "irq EL1t", "fiq EL1t", "serror EL1t",
@@ -83,6 +74,23 @@ void handle_irq(struct trap_frame *tf)
     timer_tick();
     gic_eoi(intid);
     schedule();
+}
+
+void handle_sync_el0(struct trap_frame *tf);
+
+void handle_sync_el0(struct trap_frame *tf)
+{
+    uint32_t ec = (uint32_t)(tf->esr >> 26) & 0x3f;
+
+    if (ec == 0x15) {                   // SVC: a syscall
+        // ELR already points past the svc instruction; returning
+        // resumes the user program with the result in its x0.
+        tf->x[0] = syscall_dispatch(tf);
+        return;
+    }
+
+    // Any other sync exception from EL0 is a user program fault.
+    handle_exception(tf, 8);            // dumps registers and panics
 }
 
 void exceptions_init(void)
